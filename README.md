@@ -20,7 +20,7 @@ To use EVM Sniper, you must have Node.js installed. Once you have Node.js instal
 1. Clone the repository using Git:
 
 ```
-git clone https://github.com/username/evm-sniper.git
+git clone https://github.com/figur/evm-sniper.git
 ```
 
 2. Navigate to the `evm-sniper` directory and install the dependencies:
