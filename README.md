@@ -1,6 +1,6 @@
 # EVM Sniper
 
-EVM Sniper is a command-line interface (CLI) for managing Ethereum wallets and ERC-20 tokens. It allows you to add, remove and switch between wallets and add and remove ERC-20 tokens, as well as view token details and balances.
+EVM Sniper is a text user interface (TUI) for managing Ethereum wallets and ERC-20 tokens. It allows you to add, remove and switch between wallets and add and remove ERC-20 tokens, as well as view token details and balances.
 
 Planned features and goals:
 
