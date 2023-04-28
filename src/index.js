@@ -16,8 +16,20 @@ const chainsWatcher = config.onDidChange('chains', (newValue, oldValue) => {
 const walletsWatcher = config.onDidChange('wallets', (newValue, oldValue) => {
     // Update the 'wallets' variable
     wallets = newValue;
-    walletList.setItems(wallets); // Refresh wallet list UI
-    walletList.select(walletList.items.length - 1);
+    if (!wallets || !wallets.length) {
+        walletList.setItems(wallets); // Refresh wallet list UI
+        outputLog.log('No wallets have been added. Add a wallet by pressing (A).');
+    } else {
+        walletList.setItems(wallets); // Refresh wallet list UI
+        walletList.select(walletList.items.length - 1);
+        let walletIndex = walletList.selected;
+        displayTokens(wallets[walletIndex]);
+        if (!tokenAddresses || !tokenAddresses.length) {
+            outputLog.log('No tokens have been added. Add a token by pressing (T).');
+        } else {
+            initTokenList(tokenAddresses);
+        }
+    }
     screen.render(); // Render the updated UI
 });
 
@@ -207,8 +219,6 @@ screen.append(tokenDetailsBox);
 screen.append(currentChainBox);
 screen.append(listBar);
 
-displayTokens(wallets[0]);
-
 // Set the focus to the walletList
 walletList.focus();
 
@@ -280,9 +290,13 @@ async function addWallet() {
 function removeWallet() {
     const walletIndex = walletList.selected;
     const walletAddress = config.get('wallets')[walletIndex];
-    const updatedWallets = config.get('wallets').filter((_, index) => index !== walletIndex);
-    config.set('wallets', updatedWallets);
-    outputLog.log(`Wallet removed: ${walletAddress}`);
+    if (walletAddress === null || walletAddress === undefined) {
+        outputLog.log('No wallet to remove.');
+    } else {
+        const updatedWallets = config.get('wallets').filter((_, index) => index !== walletIndex);
+        outputLog.log(`Wallet removed: ${walletAddress}`);
+        config.set('wallets', updatedWallets);
+    }
 }
 
 function addToken() {
@@ -440,4 +454,14 @@ const ERC20_ABI = [
 
 // Start the TUI application
 screen.render();
-initTokenList(tokenAddresses);
+
+if (!wallets || !wallets.length) {
+    outputLog.log('No wallets have been added. Add a wallet by pressing (A).');
+} else {
+    displayTokens(wallets[0]);
+    if (!tokenAddresses || !tokenAddresses.length) {
+        outputLog.log('No tokens have been added. Add a token by pressing (T).');
+    } else {
+        initTokenList(tokenAddresses);
+    }
+}
