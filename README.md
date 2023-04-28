@@ -8,6 +8,7 @@ Planned features and goals:
 - "Sniping"
 - Simplify managing multiple wallets
 - Telegram integration?
+- Add some color/improve aesthetics
 - ???
 
 If you want to collaborate or have suggestions/ideas you can find me on Telegram @iamfigur.
