@@ -20,13 +20,13 @@ To use EVM Sniper, you must have Node.js installed. Once you have Node.js instal
 1. Clone the repository using Git:
 
 ```
-git clone https://github.com/username/evm-wallet.git
+git clone https://github.com/username/evm-sniper.git
 ```
 
-2. Navigate to the `evm-wallet` directory and install the dependencies:
+2. Navigate to the `evm-sniper` directory and install the dependencies:
 
 ```
-cd evm-wallet
+cd evm-sniper
 npm install
 ```
 
