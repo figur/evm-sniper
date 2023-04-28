@@ -7,10 +7,13 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "type": "module",
+  "author": "figur",
+  "license": "MIT",
   "dependencies": {
     "blessed": "^0.1.81",
+    "conf": "^11.0.1",
+    "js-yaml": "^4.1.0",
     "web3": "^1.9.0"
   }
 }
