@@ -353,10 +353,18 @@ async function switchChain(index) {
     currentChain.setContent(`{bold}${chains[index].name}{/bold}`);
     rpcUrlText.setContent(`{bold}RPC URL: ${chains[index].url}{/bold}`);
     outputLog.log(`Switched to ${chains[index].name}`);
-    const walletAddress = walletList.getItem(walletList.selected).content;
-    await displayTokens(walletAddress);
+    if (!wallets || !wallets.length) {
+        outputLog.log('No wallets have been added. Add a wallet by pressing (A).');
+    } else {
+        const walletAddress = walletList.getItem(walletList.selected).content;
+        await displayTokens(walletAddress);
+        if (!tokenAddresses || !tokenAddresses.length) {
+            outputLog.log('No tokens have been added. Add a token by pressing (T).');
+        } else {
+            initTokenList(tokenAddresses);
+        }
+    }
 }
-
 
 function showChainSwitcherMenu() {
     const chainSwitcherMenu = blessed.list({
