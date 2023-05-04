@@ -1,516 +1,654 @@
-import blessed from 'blessed';
-import config from './config.js';
-import Web3 from 'web3';
-import abi from './abi.js'
+import blessed from "blessed";
+import config from "./config.js";
+import Web3 from "web3";
+import abi from "./abi.js";
 
 class UI {
-    constructor() {
-        this.config = config
-        this.chains = this.config.get('chains');
-        this.wallets = this.config.get('wallets');
-        this.walletTokens = this.config.get('walletTokens');
-        this.web3 = new Web3(new Web3.providers.HttpProvider(this.chains[0].url));
+	constructor() {
+		this.config = config;
+		this.chains = this.config.get("chains");
+		this.wallets = this.config.get("wallets");
+		this.walletTokens = this.config.get("walletTokens");
+		this.web3 = new Web3(new Web3.providers.HttpProvider(this.chains[0].url));
+		this.activeWalletIndex = 0;
+		this.activeWallet = null;
+		this.currentWalletBox = null;
 
-        this.screen = this.createScreen();
-        this.walletList = this.createWalletList();
-        this.tokenList = this.createTokenList();
-        this.tokenDetailsBox = this.createTokenDetailsBox();
-        this.currentChainBox = this.createCurrentChainBox();
-        this.outputLog = this.createOutputLog();
-        this.listBar = this.createListBar();
-        this.primaryTokenBalanceText = this.createPrimaryTokenBalanceText();
-        this.currentChain = blessed.text({
-            parent: this.currentChainBox,
-            tags: true,
-            content: `{bold}${this.chains[0].name}{/bold}`,
-        });
-        this.rpcUrlText = blessed.text({
-            parent: this.currentChainBox,
-            left: '50%',
-            tags: true,
-            content: `{bold}RPC URL: ${this.chains[0].url}{/bold}`,
-        });
+		this.screen = this.createScreen();
+		this.initUI();
+	}
 
-        this.screen.append(this.walletList);
-        this.screen.append(this.tokenList);
-        this.screen.append(this.outputLog);
-        this.screen.append(this.tokenDetailsBox);
-        this.screen.append(this.currentChainBox);
-        this.screen.append(this.listBar);
-        this.updateWalletsUI();
-    }
+	async initUI() {
+		const widgetProps = [
+			{ method: "createTokenList", top: "10%", left: "0", width: "25%", height: "45%", label: "ERC20 Tokens", },
+			{ method: "createTokenDetailsBox", top: "10%", left: "25%", width: "25%", height: "45%", label: "Token Details", },
+			{ method: "createCurrentChainBox", top: 0, left: 0, height: "10%", width: "100%", label: "EVM Sniper" },
+			{ method: "createOutputLog", top: "55%", left: 0, right: 0, height: "45%", label: "Output Logs", },
+		];
 
-    createScreen() {
-        return blessed.screen({
-            smartCSR: true,
-            title: 'EVM Wallet',
-        });
-    }
+		for (const widgetProp of widgetProps) {
+			const widget = this[widgetProp.method](widgetProp);
+			const propertyName = widgetProp.method.replace("create", "");
+			this[propertyName[0].toLowerCase() + propertyName.slice(1)] = widget;
+			this.screen.append(widget);
+		}
 
-    createWalletList() {
-        this.config.onDidChange('chains', (newValue, oldValue) => {
-            this.chains = newValue;
-        });
+		this.currentChain = this.createChainText(this.currentChainBox, "25%");
+		this.rpcUrlText = this.createChainText(
+			this.currentChainBox,
+			"75%",
+			`RPC URL: ${this.chains[0].url}`
+		);
+		this.activeWalletDisplay = await this.initializeActiveWalletDisplay(this.currentChainBox, 0);
 
-        this.config.onDidChange('wallets', (newValue, oldValue) => {
-            this.wallets = newValue;
-            this.updateWalletsUI();
-        });
+		this.listBar = this.createListBar();
+		this.screen.append(this.listBar);
+		// this.updateWalletsUI();
 
-        this.config.onDidChange('walletTokens', async (newValue, oldValue) => {
-            this.walletTokens = newValue;
-            await this.updateTokensUI();
-        });
+		this.config.onDidChange('chains', (newValue, oldValue) => {
+			this.chains = newValue;
+		});
 
-        return blessed.list({
-            top: '10%',
-            left: 0,
-            width: '50%',
-            height: '45%',
-            keys: true,
-            mouse: true,
-            label: 'Wallets',
-            border: 'line',
-            scrollbar: {
-                ch: ' ',
-                track: { bg: 'cyan' },
-            },
-            style: {
-                selected: { bg: 'blue' },
-            },
-            items: [],
-        });
-    }
+		this.config.onDidChange('wallets', (newValue, oldValue) => {
+			this.wallets = newValue;
+			// this.updateWalletsUI();
+		});
 
-    createTokenList() {
-        return blessed.list({
-            top: "10%",
-            left: "50%",
-            width: "25%",
-            height: "45%",
-            keys: true,
-            mouse: true,
-            label: "ERC20 Tokens",
-            border: "line",
-            scrollbar: {
-                ch: " ",
-                track: { bg: "cyan" },
-            },
-            style: {
-                selected: { bg: "blue" },
-            },
-            items: [],
-        });
-    }
+		this.config.onDidChange('walletTokens', async (newValue, oldValue) => {
+			this.walletTokens = newValue;
+			await this.updateTokensUI();
+		});
+	}
 
-    createTokenDetailsBox() {
-        return blessed.box({
-            top: '10%',
-            left: '75%',
-            width: '25%',
-            height: '45%',
-            keys: true,
-            mouse: true,
-            label: 'Token Details',
-            border: 'line',
-            scrollbar: {
-                ch: ' ',
-                track: { bg: 'cyan' },
-            },
-        });
-    }
+	createBoxWidget(props) {
+		const { top, left, width, height, label, keys, mouse, border } = props;
+		return blessed.box({
+			top,
+			left,
+			width,
+			height,
+			keys: keys || true,
+			mouse: mouse || true,
+			label,
+			border: border || "line",
+			scrollbar: { ch: " ", track: { bg: "cyan" } },
+		});
+	}
 
-    createCurrentChainBox() {
-        return blessed.box({
-            top: 0,
-            left: 0,
-            height: '10%',
-            width: '100%',
-            border: 'line',
-        });
-    }
+	async initializeActiveWalletDisplay(parent, left) {
+		this.currentWalletBox = blessed.text({
+			parent,
+			left,
+			tags: true,
+			content: `No active wallet`,
+		});
+		if (this.wallets.length > 0) {
+			await this.selectWallet(0);
+			this.updateActiveWalletDisplay();
+		} else {
+			this.currentWalletBox.setContent("Please add a wallet.");
+		}
+	}
 
-    createOutputLog() {
-        return blessed.log({
-            top: '55%',
-            left: 0,
-            right: 0,
-            height: '45%',
-            keys: true,
-            mouse: true,
-            label: 'Output Logs',
-            border: 'line',
-            scrollbar: {
-                ch: ' ',
-                track: { bg: 'cyan' },
-            },
-        });
-    }
+	createChainText(parent, left, content) {
+		return blessed.text({
+			parent,
+			left,
+			tags: true,
+			content: content
+				? `{bold}${content}{/bold}`
+				: `{bold}${this.chains[0].name}{/bold}`,
+		});
+	}
 
-    createListBar() {
-        return blessed.listbar({
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 'shrink',
-            keys: true,
-            mouse: true,
-            style: {
-                prefix: { fg: 'blue' },
-                item: { fg: 'white', bg: 'black', hover: { bg: 'blue' } },
-                selected: { fg: 'white', bg: 'blue' }
-            },
-            commands: {
-                'Add Wallet (A)': {
-                    keys: ['a'],
-                    callback: () => this.addWallet()
-                },
-                'Remove Wallet (R)': {
-                    keys: ['r'],
-                    callback: () => this.removeWallet()
-                },
-                'Add Token (T)': {
-                    keys: ['t'],
-                    callback: () => this.addToken()
-                },
-                'Remove Token (D)': {
-                    keys: ['d'],
-                    callback: () => this.removeToken()
-                },
-                'Chain (Ctrl+S)': {
-                    keys: ['C-s'],
-                    callback: () => this.showChainSwitcherMenu()
-                },
-                'Quit (Q)': {
-                    keys: ['q', 'C-c'],
-                    callback: () => process.exit(0)
-                }
-            }
+	createCurrentChainBox(props) {
+		return this.createBoxWidget({ ...props });
+	}
 
-        });
-    }
+	createOutputLog(props) {
+		return blessed.log({ ...this.createBoxWidget(props) });
+	}
 
-    async updateWalletsUI() {
-        if (!this.wallets || !this.wallets.length) {
-            this.walletList.setItems(this.wallets);
-            this.outputLog.log('No wallets have been added. Add a wallet by pressing (A).');
-        } else {
-            this.walletList.setItems(this.wallets);
-            this.walletList.select(this.walletList.items.length - 1);
-            let walletIndex = this.walletList.selected;
-            let walletAddress = this.wallets[walletIndex];
-            await this.getPrimaryTokenBalance(walletAddress);
-            await this.updateTokensUI(walletAddress);
-        }
-        this.screen.render();
-    }
+	createTokenDetailsBox(props) {
+		return this.createBoxWidget({ ...props });
+	}
 
-    async updateTokensUI(walletAddress) {
-        if (walletAddress) {
-            await this.initTokenList(this.walletTokens[walletAddress]);
-            this.tokenList.select(this.tokenList.items.length - 1);
-            const tokenIndex = this.tokenList.selected;
-            if (this.walletTokens[walletAddress]) {
-                const tokenAddress = this.walletTokens[walletAddress][tokenIndex];
-                this.displayTokenDetails(tokenAddress, walletAddress);
-                this.screen.render();
-            }
-        }
-    }
+	createListWidget(props) {
+		return blessed.list({
+			...this.createBoxWidget(props),
+			keys: true,
+			mouse: true,
+			border: "line",
+			scrollbar: { ch: " ", track: { bg: "cyan" } },
+			style: { selected: { bg: "blue" } },
+			items: [],
+		});
+	}
 
-    async updateFocusedBorderColor() {
-        if (this.walletList.focused) {
-            this.walletList.style.border = { fg: 'green' };
-            this.tokenList.style.border = { fg: 'white' };
-        } else {
-            this.walletList.style.border = { fg: 'white' };
-            this.tokenList.style.border = { fg: 'green' };
-        }
-        this.screen.render();
-    }
+	createTokenList(props) {
+		return this.createListWidget({ ...props });
+	}
 
-    async getTokenSymbols(tokenAddresses = []) {
-        const tokenSymbols = [];
+	createScreen() {
+		return blessed.screen({
+			smartCSR: true,
+			title: "EVM Wallet",
+			ignoreLocked: ['C-q'],
+			fullUnicode: true,
+			dockBorders: true,
+			autoPadding: true,
+		});
+	}
 
-        for (const tokenAddress of tokenAddresses) {
-            try {
-                const token = new this.web3.eth.Contract(abi, tokenAddress);
-                const symbol = await token.methods.symbol().call();
-                tokenSymbols.push(`${symbol} (${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)})`);
-            } catch (err) {
-                this.outputLog.log(`Error fetching token symbol for ${tokenAddress}: ${err.message}`);
-                tokenSymbols.push(`Unknown (${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)})`);
-            }
-        }
+	createListBar() {
+		return blessed.listbar({
+			bottom: 0,
+			left: 0,
+			right: 0,
+			height: "shrink",
+			keys: true,
+			mouse: true,
+			style: {
+				prefix: { fg: "blue" },
+				item: { fg: "white", bg: "black", hover: { bg: "blue" } },
+				selected: { fg: "white", bg: "blue" },
+			},
+			commands: {
+				"Wallets (Ctrl+W)": {
+					keys: ["C-w"],
+					callback: () => this.showWalletListMenu(),
+				},
+				"Add Token (T)": {
+					keys: ["t"],
+					callback: () => this.addToken(),
+				},
+				"Remove Token (D)": {
+					keys: ["d"],
+					callback: () => this.removeToken(),
+				},
+				"Chains (Ctrl+S)": {
+					keys: ["C-s"],
+					callback: () => this.showChainSwitcherMenu(),
+				},
+				"Quit (Q)": {
+					keys: ["q", "C-c"],
+					callback: () => process.exit(0),
+				},
+			},
+		});
+	}
 
-        return tokenSymbols;
-    }
+	async updateWalletsUI() {
+		if (!this.wallets || !this.wallets.length) {
+			this.walletListMenu.setItems(this.wallets);
+			this.outputLog.log(
+				"No wallets have been added. Add a wallet by pressing (A)."
+			);
+		} else {
+			this.walletListMenu.setItems(this.wallets);
+			this.walletListMenu.select(this.walletListMenu.items.length - 1);
+			let walletIndex = this.walletListMenu.selected;
+			await this.getPrimaryTokenBalance();
+			await this.updateTokensUI();
+		}
+		this.screen.render();
+	}
 
-    async initTokenList(tokenAddresses = []) {
-        this.outputLog.log('Refreshing tokens...');
-        const tokenSymbols = await this.getTokenSymbols(tokenAddresses);
-        this.outputLog.log('Tokens refreshed.');
+	async updateTokensUI() {
+		if (this.activeWallet.public) {
+			await this.initTokenList(this.walletTokens[this.activeWallet.public]);
+			this.tokenList.select(this.tokenList.items.length - 1);
+			const tokenIndex = this.tokenList.selected;
+			if (this.walletTokens[this.activeWallet.public]) {
+				const tokenAddress = this.walletTokens[this.activeWallet.public][tokenIndex];
+				this.displayTokenDetails(tokenAddress);
+				this.screen.render();
+			}
+		}
+	}
 
-        this.tokenList.setItems(tokenSymbols);
+	async getTokenSymbols(tokenAddresses = []) {
+		const tokenSymbols = [];
 
-        this.tokenList.removeAllListeners('select');
+		for (const tokenAddress of tokenAddresses) {
+			try {
+				const token = new this.web3.eth.Contract(abi, tokenAddress);
+				const symbol = await token.methods.symbol().call();
+				tokenSymbols.push(
+					`${symbol} (${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)})`
+				);
+			} catch (err) {
+				this.outputLog.log(
+					`Error fetching token symbol for ${tokenAddress}: ${err.message}`
+				);
+				tokenSymbols.push(
+					`Unknown (${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)})`
+				);
+			}
+		}
 
-        this.tokenList.on('select', async (item) => {
-            const walletAddress = this.walletList.getItem(this.walletList.selected).content;
-            const tokenIndex = tokenSymbols.indexOf(item.content);
-            const tokenAddress = tokenAddresses[tokenIndex];
-            this.displayTokenDetails(tokenAddress, walletAddress);
-        });
+		return tokenSymbols;
+	}
 
-        this.screen.render();
-    }
+	async initTokenList(tokenAddresses = []) {
+		this.outputLog.log("Refreshing tokens...");
+		const tokenSymbols = await this.getTokenSymbols(tokenAddresses);
+		this.outputLog.log("Tokens refreshed.");
 
-    async switchChain(index) {
-        this.outputLog.log(`Switching to ${this.chains[index].name}...`);
-        this.web3.setProvider(new Web3.providers.HttpProvider(this.chains[index].url));
-        this.currentChain.setContent(`{bold}${this.chains[index].name}{/bold}`);
-        this.rpcUrlText.setContent(`{bold}RPC URL: ${this.chains[index].url}{/bold}`);
-        this.outputLog.log(`Switched to ${this.chains[index].name}`);
-        if (!this.wallets || !this.wallets.length) {
-            this.outputLog.log('No wallets have been added. Add a wallet by pressing (A).');
-        } else {
-            const walletAddress = this.walletList.getItem(this.walletList.selected).content;
-            await this.getPrimaryTokenBalance(walletAddress);
-            if (!this.walletTokens[walletAddress] || !this.walletTokens[walletAddress].length) {
-                this.outputLog.log('No tokens have been added. Add a token by pressing (T).');
-            } else {
-                this.initTokenList(this.walletTokens[walletAddress]);
-            }
-        }
-    }
+		this.tokenList.setItems(tokenSymbols);
 
-    showChainSwitcherMenu() {
-        const chainSwitcherMenu = blessed.list({
-            top: 'center',
-            left: 'center',
-            width: '50%',
-            height: '50%',
-            keys: true,
-            mouse: true,
-            label: 'Select Chain',
-            border: 'line',
-            items: this.chains.map(chain => chain.name),
-            style: {
-                selected: { bg: 'blue' },
-            },
-        });
+		this.tokenList.removeAllListeners("select");
 
-        chainSwitcherMenu.on('select', (item) => {
-            const chainIndex = this.chains.findIndex(chain => chain.name === item.content);
-            this.switchChain(chainIndex);
-            this.screen.remove(chainSwitcherMenu);
-            this.screen.render();
-        });
+		this.tokenList.on("select", async (item) => {
+			const tokenIndex = tokenSymbols.indexOf(item.content);
+			const tokenAddress = tokenAddresses[tokenIndex];
+			this.displayTokenDetails(tokenAddress, this.activeWallet.public);
+		});
 
-        chainSwitcherMenu.key(['escape'], () => {
-            this.screen.remove(chainSwitcherMenu);
-            this.screen.render();
-        });
+		this.screen.render();
+	}
 
-        this.screen.append(chainSwitcherMenu);
-        const chainSwitcherListBar = blessed.listbar({
-            parent: chainSwitcherMenu,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 'shrink',
-            keys: true,
-            mouse: true,
-            autoCommandKeys: true,
-            border: 'line',
-            style: {
-                prefix: { fg: 'blue' },
-                item: { fg: 'white' },
-                selected: { bg: 'blue', fg: 'white' },
-            },
-            commands: {
-                'Info': {
-                    keys: ['i'],
-                    callback: () => {
-                        this.screen.render();
-                    }
-                },
-            },
-        });
+	async switchChain(index) {
+		this.outputLog.log(`Switching to ${this.chains[index].name}...`);
+		this.web3.setProvider(
+			new Web3.providers.HttpProvider(this.chains[index].url)
+		);
+		this.currentChain.setContent(`{bold}${this.chains[index].name}{/bold}`);
+		this.rpcUrlText.setContent(
+			`{bold}RPC URL: ${this.chains[index].url}{/bold}`
+		);
+		this.outputLog.log(`Switched to ${this.chains[index].name}`);
+		if (!this.wallets || !this.wallets.length) {
+			this.outputLog.log(
+				"No wallets have been added. Add a wallet by pressing (A)."
+			);
+		} else {
+			await this.getPrimaryTokenBalance(this.activeWallet.public);
+			if (
+				!this.walletTokens[this.activeWallet.public] ||
+				!this.walletTokens[this.activeWallet.public].length
+			) {
+				this.outputLog.log(
+					"No tokens have been added. Add a token by pressing (T)."
+				);
+			} else {
+				this.initTokenList(this.walletTokens[this.activeWallet.public]);
+			}
+		}
+	}
 
-        chainSwitcherMenu.focus();
-        this.screen.render();
-    }
+	showWalletListMenu() {
+		this.walletListMenu = blessed.list({
+			top: "center",
+			left: "center",
+			width: "50%",
+			height: "50%",
+			keys: true,
+			mouse: true,
+			label: "Select Wallet",
+			border: "line",
+			items: [],
+			style: {
+				selected: { bg: "blue" },
+			},
+		});
 
-    createPrimaryTokenBalanceText() {
-        return blessed.text({
-            parent: this.currentChainBox,
-            left: '75%',
-            tags: true,
-            content: `{bold}Balance: Loading...{/bold}`,
-        });
-    };
+		this.updateWalletListMenuItems();
 
-    async addWallet() {
-        const prompt = blessed.prompt({
-            parent: this.screen,
-            top: 'center',
-            left: 'center',
-            height: 'shrink',
-            width: '50%',
-            label: 'Add Wallet',
-            border: 'line',
-        });
+		this.walletListMenu.on("select", (item) => {
+			const index = this.walletListMenu.getItemIndex(item);
+			this.selectWallet(0);
+			this.updateActiveWalletDisplay();
+			this.screen.remove(this.walletListMenu);
+			this.screen.render();
+		});
+		this.walletListMenu.key(["escape"], () => {
+			this.screen.remove(this.walletListMenu);
+			this.screen.render();
+		});
+		this.screen.append(this.walletListMenu);
 
-        prompt.readInput('Enter wallet address:', '', async (err, walletAddress) => {
-            if (err) {
-                this.outputLog.log(`Error: ${err.message}`);
-                this.screen.remove(prompt);
-                this.screen.render();
-                return;
-            }
+		const walletListMenuBar = blessed.listbar({
+			parent: this.walletListMenu,
+			bottom: 0,
+			left: 0,
+			right: 0,
+			height: "shrink",
+			keys: true,
+			mouse: true,
+			autoCommandKeys: true,
+			border: "line",
+			style: {
+				prefix: { fg: "blue" },
+				item: { fg: "white" },
+				selected: { bg: "blue", fg: "white" },
+			},
+			commands: {
+				"Add Wallet (A)": {
+					keys: ["a"],
+					callback: () => this.addWallet(),
+				},
+				"Remove Wallet (R)": {
+					keys: ["r"],
+					callback: () => this.removeWallet(),
+				},
+			},
+		});
 
-            if (!walletAddress) {
-                this.outputLog.log('No wallet address provided.');
-                this.screen.remove(prompt);
-                this.screen.render();
-                return;
-            }
+		this.walletListMenu.focus();
+		this.screen.render();
+	}
 
-            if (!this.web3.utils.isAddress(walletAddress)) {
-                this.outputLog.log('Invalid wallet address provided.');
-                this.screen.remove(prompt);
-                this.screen.render();
-                return;
-            }
-            this.config.set('wallets', [...this.config.get('wallets'), walletAddress]);
-            this.config.set('walletTokens', { ...this.config.get('walletTokens'), [walletAddress]: [] });
-            this.outputLog.log(`Wallet added: ${walletAddress}`);
-            this.screen.remove(prompt);
-            this.screen.render();
-        });
-    }
+	updateWalletListMenuItems() {
+		const items = this.config.get("wallets").map((wallet) => wallet.public);
+		this.walletListMenu.setItems(items);
+		this.screen.render();
+	}
 
-    removeWallet() {
-        const walletIndex = this.walletList.selected;
-        const walletAddress = this.config.get('wallets')[walletIndex];
-        if (walletAddress === null || walletAddress === undefined) {
-            outputLog.log('No wallet to remove.');
-        } else {
-            const updatedWallets = this.config.get('wallets').filter((_, index) => index !== walletIndex);
-            this.config.set('wallets', updatedWallets);
-            const updatedWalletTokens = { ...this.walletTokens };
-            delete updatedWalletTokens[walletAddress];
-            this.config.set('walletTokens', updatedWalletTokens);
-        }
-    }
+	showChainSwitcherMenu() {
+		const chainSwitcherMenu = blessed.list({
+			top: "center",
+			left: "center",
+			width: "50%",
+			height: "50%",
+			keys: true,
+			mouse: true,
+			label: "Select Chain",
+			border: "line",
+			items: this.chains.map((chain) => chain.name),
+			style: {
+				selected: { bg: "blue" },
+			},
+		});
 
-    async addToken() {
-        const walletIndex = this.walletList.selected;
-        if (walletIndex === -1) {
-            this.outputLog.log("No wallet selected. Please add and select a wallet before adding a token.");
-            return;
-        }
-        const walletAddress = this.wallets[walletIndex];
+		chainSwitcherMenu.on("select", (item) => {
+			const chainIndex = this.chains.findIndex(
+				(chain) => chain.name === item.content
+			);
+			this.switchChain(chainIndex);
+			this.screen.remove(chainSwitcherMenu);
+			this.screen.render();
+		});
 
-        const tokenPrompt = blessed.prompt({
-            parent: this.screen,
-            top: 'center',
-            left: 'center',
-            width: '50%',
-            height: 'shrink',
-            keys: true,
-            mouse: true,
-            label: 'Add Token',
-            border: 'line',
-        });
+		chainSwitcherMenu.key(["escape"], () => {
+			this.screen.remove(chainSwitcherMenu);
+			this.screen.render();
+		});
 
-        tokenPrompt.readInput('Enter token address:', '', async (err, value) => {
-            if (err) {
-                this.outputLog.log(`Error adding token: ${err.message}`);
-                this.screen.remove(tokenPrompt);
-                this.screen.render();
-                return;
-            }
+		this.screen.append(chainSwitcherMenu);
+		const chainSwitcherListBar = blessed.listbar({
+			parent: chainSwitcherMenu,
+			bottom: 0,
+			left: 0,
+			right: 0,
+			height: "shrink",
+			keys: true,
+			mouse: true,
+			autoCommandKeys: true,
+			border: "line",
+			style: {
+				prefix: { fg: "blue" },
+				item: { fg: "white" },
+				selected: { bg: "blue", fg: "white" },
+			},
+			commands: {
+				Info: {
+					keys: ["i"],
+					callback: () => {
+						this.screen.render();
+					},
+				},
+			},
+		});
 
-            if (!value) {
-                this.outputLog.log('No token address provided.');
-                this.screen.remove(tokenPrompt);
-                this.screen.render();
-                return;
-            }
-            const token = new this.web3.eth.Contract(abi, value);
-            const symbol = await token.methods.symbol().call();
-            const displaySymbol = `${symbol} (${value.slice(0, 6)}...${value.slice(-4)})`;
+		chainSwitcherMenu.focus();
+		this.screen.render();
+	}
 
-            const newTokenAddresses = [...(this.walletTokens[walletAddress] || []), value];
-            this.walletTokens = {
-                ...this.walletTokens,
-                [walletAddress]: newTokenAddresses,
-            };
-            this.config.set('walletTokens', this.walletTokens);
+	async selectWallet(index) {
+		if (index >= 0 && index <= this.wallets.length) {
+			this.activeWalletIndex = index;
+			this.activeWallet = this.wallets[index];
+		}
+	}
 
-            this.outputLog.log(`Token added: ${displaySymbol}`);
-            this.screen.remove(tokenPrompt);
-            await this.initTokenList(this.walletTokens[walletAddress]);
-            this.screen.render();
-        });
-    }
+	async updateActiveWalletDisplay() {
+		this.currentWalletBox.setContent("");
+		const primaryTokenBalance = await this.getPrimaryTokenBalance();
+		this.currentWalletBox.setContent(
+			`Wallet: ${this.activeWallet.public}\nBalance: ${primaryTokenBalance}`
+		);
+		this.screen.render();
+	}
 
-    removeToken() {
-        const walletIndex = this.walletList.selected;
-        if (walletIndex === -1) {
-            this.outputLog.log("No wallet selected. Please add and select a wallet before removing a token.");
-            return;
-        }
-        const walletAddress = this.wallets[walletIndex];
+	async promptUser(label, callback, parent) {
+		const container = blessed.box({
+			parent: parent,
+			top: "center",
+			left: "center",
+			height: "shrink",
+			width: "50%",
+			label: label,
+			border: "line",
+		});
 
-        const tokenIndex = this.tokenList.selected;
-        if (this.walletTokens[walletAddress]) {
-            const tokenAddress = this.walletTokens[walletAddress][tokenIndex];
-            const updatedTokens = this.walletTokens[walletAddress].filter((_, index) => index !== tokenIndex);
-            this.walletTokens = {
-                ...this.walletTokens,
-                [walletAddress]: updatedTokens,
-            };
-            this.config.set('walletTokens', this.walletTokens);
-            this.outputLog.log(`Token removed: ${tokenAddress}`);
-            this.initTokenList(this.walletTokens[walletAddress]);
-        } else {
-            this.outputLog.log('No token to remove.');
-        }
-    }
+		const input = blessed.textbox({
+			parent: container,
+			top: 1,
+			left: 1,
+			right: 1,
+			height: 1,
+			inputOnFocus: true,
+			style: {
+				bg: "white",
+				fg: "black",
+			},
+		});
 
-    async getPrimaryTokenBalance(walletAddress) {
-        try {
-            const balance = await this.web3.eth.getBalance(walletAddress);
-            const formattedBalance = this.web3.utils.fromWei(balance, 'ether');
-            this.primaryTokenBalanceText.setContent(`{bold}Balance: ${formattedBalance}{/bold}`);
-            this.screen.render();
-        } catch (err) {
-            this.primaryTokenBalanceText.setContent(`{bold}Balance: Error{/bold}`);
-            this.outputLog.log(`Error fetching primary token balance: ${err.message}`);
-        }
-    }
+		const okayButton = blessed.button({
+			parent: container,
+			top: 3,
+			left: 1,
+			height: 1,
+			width: 5,
+			content: "Okay",
+			style: {
+				bg: "white",
+				fg: "black",
+			},
+		});
 
-    async displayTokenDetails(tokenAddress, walletAddress) {
-        this.outputLog.log(`Fetching token details for ${tokenAddress}...`);
-        try {
-            const token = new this.web3.eth.Contract(abi, tokenAddress);
-            const name = await token.methods.name().call();
-            const decimals = await token.methods.decimals().call();
-            const totalSupply = await token.methods.totalSupply().call();
-            const formattedSupply = totalSupply / 10 ** decimals;
-            const symbol = await token.methods.symbol().call();
-            const balance = await token.methods.balanceOf(walletAddress).call();
-            const formattedBalance = balance / 10 ** decimals;
-            this.tokenDetailsBox.setContent(`Name: ${name}\nSymbol: ${symbol}\nDecimals: ${decimals}\nTotal Supply: ${formattedSupply}\nWallet Balance: ${formattedBalance}`);
-            this.screen.render();
-            this.outputLog.log(`Token details fetched for ${tokenAddress}`);
-        } catch (err) {
-            this.outputLog.log(`Error fetching token details: ${err.message}`);
-        }
-    }
+		const cancelButton = blessed.button({
+			parent: container,
+			top: 3,
+			left: 7,
+			height: 1,
+			width: 7,
+			content: "Cancel",
+			style: {
+				bg: "white",
+				fg: "black",
+			},
+		});
+
+		const elements = [input, okayButton, cancelButton];
+		let currentFocusIndex = 0;
+
+		function focusNext() {
+			currentFocusIndex = (currentFocusIndex + 1) % elements.length;
+			elements[currentFocusIndex].focus();
+		}
+
+		elements.forEach((element, index) => {
+			element.key(["tab"], () => {
+				focusNext();
+			});
+		});
+
+		okayButton.on("press", () => {
+			callback(input.value);
+			this.screen.remove(container);
+			this.screen.render();
+		});
+
+		cancelButton.on("press", () => {
+			this.screen.remove(container);
+			this.screen.render();
+		});
+
+		input.focus();
+		this.screen.render();
+	}
+
+	logError(errorMessage) {
+		this.outputLog.log(errorMessage);
+		this.screen.render();
+	}
+
+	async addWallet() {
+		await this.promptUser("Wallet name (optional):", async (walletName) => {
+			await this.promptUser("Wallet private key:", async (walletPrivateKey) => {
+				if (!walletPrivateKey) {
+					this.logError("No wallet private key provided.");
+					return;
+				}
+
+				try {
+					const account = this.web3.eth.accounts.privateKeyToAccount(walletPrivateKey);
+					const walletAddress = account.address;
+
+					this.config.set("wallets", [
+						...this.config.get("wallets"),
+						{
+							name: walletName || "",
+							public: walletAddress,
+							private: walletPrivateKey,
+						},
+					]);
+					this.config.set("walletTokens", {
+						...this.config.get("walletTokens"),
+						[walletAddress]: [],
+					});
+					this.updateWalletListMenuItems();
+					this.outputLog.log(`Wallet added: ${walletName ? walletName + " " : ""}(${walletAddress})`);
+				} catch (err) {
+					this.logError(`Error deriving wallet address: ${err.message}`);
+				}
+			}, this.walletListMenu);
+		}, this.walletListMenu);
+	}
+
+	removeWallet() {
+		const walletIndex = this.walletListMenu.selected;
+		const wallets = this.config.get("wallets");
+		const wallet = wallets[walletIndex];
+		if (wallet === null || wallet === undefined) {
+			outputLog.log("No wallet to remove.");
+		} else {
+			const updatedWallets = wallets.filter((_, index) => index !== walletIndex);
+			this.config.set("wallets", updatedWallets);
+			const updatedWalletTokens = { ...this.walletTokens };
+			delete updatedWalletTokens[wallet.public];
+			this.config.set("walletTokens", updatedWalletTokens);
+			this.updateWalletListMenuItems();
+		}
+	}
+
+	async addToken() {
+		if (this.activeWalletIndex === -1) {
+			this.outputLog.log(
+				"No wallet selected. Please add and select a wallet before adding a token."
+			);
+			return;
+		}
+
+		await this.promptUser("Token address:", async (tokenAddress) => {
+			if (!tokenAddress) {
+				this.logError("No token address provided.");
+				return;
+			}
+
+			const token = new this.web3.eth.Contract(abi, tokenAddress);
+			const symbol = await token.methods.symbol().call();
+			const displaySymbol = `${symbol} (${tokenAddress.slice(
+				0,
+				6
+			)}...${tokenAddress.slice(-4)})`;
+
+			const newTokenAddresses = [
+				...(this.walletTokens[this.activeWallet.public] || []),
+				tokenAddress,
+			];
+			this.walletTokens = {
+				...this.walletTokens,
+				[this.activeWallet.public]: newTokenAddresses,
+			};
+			this.config.set("walletTokens", this.walletTokens);
+
+			this.outputLog.log(`Token added: ${displaySymbol}`);
+			await this.initTokenList(this.walletTokens[this.activeWallet.public]);
+		}, this.screen);
+	}
+
+	removeToken() {
+		if (this.activeWalletIndex === -1) {
+			this.outputLog.log(
+				"No wallet selected. Please add and select a wallet before removing a token."
+			);
+			return;
+		}
+
+		const tokenIndex = this.tokenList.selected;
+		if (this.walletTokens[this.activeWallet.public]) {
+			const tokenAddress = this.walletTokens[this.activeWallet.public][tokenIndex];
+			const updatedTokens = this.walletTokens[this.activeWallet.public].filter(
+				(_, index) => index !== tokenIndex
+			);
+			this.walletTokens = {
+				...this.walletTokens,
+				[this.activeWallet.public]: updatedTokens,
+			};
+			this.config.set("walletTokens", this.walletTokens);
+			this.outputLog.log(`Token removed: ${tokenAddress}`);
+			this.initTokenList(this.walletTokens[this.activeWallet.public]);
+		} else {
+			this.outputLog.log("No token to remove.");
+		}
+	}
+
+	async getPrimaryTokenBalance() {
+		try {
+			const balance = await this.web3.eth.getBalance(this.activeWallet.public);
+			return this.web3.utils.fromWei(balance, "ether");
+		} catch (err) {
+			this.outputLog.log(
+				`Error fetching primary token balance: ${err.message}`
+			);
+		}
+	}
+
+	async displayTokenDetails(tokenAddress) {
+		this.outputLog.log(`Fetching token details for ${tokenAddress}...`);
+		try {
+			const token = new this.web3.eth.Contract(abi, tokenAddress);
+			const [name, decimals, totalSupply, symbol, balance] = await Promise.all([
+				token.methods.name().call(),
+				token.methods.decimals().call(),
+				token.methods.totalSupply().call(),
+				token.methods.symbol().call(),
+				token.methods.balanceOf(this.activeWallet.public).call(),
+			]);
+			const formattedSupply = totalSupply / 10 ** decimals;
+			const formattedBalance = balance / 10 ** decimals;
+			this.tokenDetailsBox.setContent(
+				`Name: ${name}\nSymbol: ${symbol}\nDecimals: ${decimals}\nTotal Supply: ${formattedSupply}\nWallet Balance: ${formattedBalance}`
+			);
+			this.screen.render();
+			this.outputLog.log(`Token details fetched for ${tokenAddress}`);
+		} catch (err) {
+			this.outputLog.log(`Error fetching token details: ${err.message}`);
+		}
+	}
 }
 
 export default UI;
