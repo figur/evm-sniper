@@ -107,7 +107,7 @@ class UIManager {
     createScreen() {
         return blessed.screen({
             smartCSR: true,
-            title: "EVM Wallet",
+            title: "EVM Sniper",
             fullUnicode: true,
             dockBorders: true,
             autoPadding: true,

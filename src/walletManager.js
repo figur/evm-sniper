@@ -1,7 +1,6 @@
 import config from "./config.js";
 import blessed from "blessed";
 import prompt from './helpers/form.js'
-
 class WalletManager {
     constructor(uiManager, web3) {
         this.uiManager = uiManager;
@@ -30,22 +29,22 @@ class WalletManager {
             label: "Select Wallet",
             border: "line",
             items: [],
-            style : {
-                bg : 'white',
-                item : {
-                  fg : 'black',
-                  bg : 'white',
-                  hover : {
-                    fg   : 'white',
-                    bg   : 'grey',
-                    bold : true,
-                  },
+            style: {
+                bg: 'white',
+                item: {
+                    fg: 'black',
+                    bg: 'white',
+                    hover: {
+                        fg: 'white',
+                        bg: 'grey',
+                        bold: true,
+                    },
                 },
-                selected : {
-                  fg : 'white',
-                  bg : 'blue',
+                selected: {
+                    fg: 'white',
+                    bg: 'blue',
                 },
-              },
+            },
         });
 
         this.updateWalletListMenuItems();
@@ -73,22 +72,22 @@ class WalletManager {
             mouse: true,
             autoCommandKeys: true,
             border: "line",
-            style : {
-                bg : 'white',
-                item : {
-                  fg : 'black',
-                  bg : 'white',
-                  hover : {
-                    fg   : 'white',
-                    bg   : 'grey',
-                    bold : true,
-                  },
+            style: {
+                bg: 'white',
+                item: {
+                    fg: 'black',
+                    bg: 'white',
+                    hover: {
+                        fg: 'white',
+                        bg: 'grey',
+                        bold: true,
+                    },
                 },
-                selected : {
-                  fg : 'white',
-                  bg : 'blue',
+                selected: {
+                    fg: 'white',
+                    bg: 'blue',
                 },
-              },
+            },
             commands: {
                 "Add Wallet (A)": {
                     keys: ["a"],
@@ -112,23 +111,33 @@ class WalletManager {
     }
 
     async addWallet() {
-        await this.uiManager.promptUser("Wallet name (optional):", async (walletName) => {
-            await this.uiManager.promptUser("Wallet private key:", async (walletPrivateKey) => {
-                if (!walletPrivateKey) {
+        const config = {
+            height: 9,
+            fields: [
+                { name: 'walletName', label: { content: 'Name (opt)  :', left: 2, bottom: 7 }, left: 16, bottom: 7, width: 35 },
+                { name: 'walletPrivateKey', label: { content: 'Private Key :', left: 2, bottom: 5 }, left: 16, bottom: 5, width: 30, censor: true },
+            ],
+            buttons: [
+                { content: 'Cancel', right: 11, bottom: 1, action: () => form.cancel() },
+                { content: 'Add', right: 2, bottom: 1, action: () => form.submit() }
+            ]
+        };
+        await prompt(this.uiManager.screen, config, { closable: true }).promise
+            .then(values => {
+                if (!values.walletPrivateKey) {
                     this.logError("No wallet private key provided.");
                     return;
                 }
-
                 try {
-                    const account = this.web3.eth.accounts.privateKeyToAccount(walletPrivateKey);
+                    const account = this.web3.eth.accounts.privateKeyToAccount(values.walletPrivateKey);
                     const walletAddress = account.address;
 
                     this.config.set("wallets", [
                         ...this.config.get("wallets"),
                         {
-                            name: walletName || "",
+                            name: values.walletName || "",
                             public: walletAddress,
-                            private: walletPrivateKey,
+                            private: values.walletPrivateKey,
                         },
                     ]);
                     this.config.set("walletTokens", {
@@ -136,12 +145,11 @@ class WalletManager {
                         [walletAddress]: [],
                     });
                     this.updateWalletListMenuItems();
-                    this.uiManager.outputLog.log(`Wallet added: ${walletName ? walletName + " " : ""}(${walletAddress})`);
+                    this.uiManager.outputLog.log(`Wallet added: ${values.walletName ? values.walletName + " " : ""}(${walletAddress})`);
                 } catch (err) {
-                    this.logError(`Error deriving wallet address: ${err.message}`);
+                    this.uiManager.logError(`Error deriving wallet address: ${err.message}`);
                 }
-            }, this.walletListMenu);
-        }, this.walletListMenu);
+            });
     }
 
     removeWallet() {

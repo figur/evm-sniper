@@ -1,5 +1,6 @@
 import abi from './abi.js'
 import config from "./config.js";
+import prompt from './helpers/form.js'
 
 class TokenManager {
     constructor(uiManager, web3) {
