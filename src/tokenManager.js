@@ -1,12 +1,9 @@
 import abi from './abi.js'
-import config from "./config.js";
-import prompt from './helpers/form.js'
+import { config } from "./conf.js";
 
 class TokenManager {
     constructor(uiManager, web3) {
         this.uiManager = uiManager;
-        // this.chains = config.get("chains");
-        // this.wallets = config.get("wallets");
         this.walletTokens = config.get("walletTokens");
         this.web3 = web3
 
@@ -33,8 +30,6 @@ class TokenManager {
 
         this.uiManager.screen.render();
     }
-
-
 
     async getTokenSymbols(tokenAddresses = []) {
         const tokenSymbols = [];

@@ -1,4 +1,4 @@
-import blessed from 'blessed';
+import blessed from "blessed";
 
 blessed.Node.prototype.insert = function (element, i) {
   var self = this;

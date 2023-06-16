@@ -1,4 +1,4 @@
-import blessed from 'blessed';
+import blessed from "blessed";
 
 blessed.Screen.prototype._listenMouse = function (el) {
   var self = this;

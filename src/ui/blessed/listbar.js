@@ -1,4 +1,4 @@
-import blessed from 'blessed';
+import blessed from "blessed";
 
 blessed.listbar.prototype.add =
 blessed.listbar.prototype.addItem =

@@ -1,5 +1,5 @@
 
-import blessed from 'blessed';
+import blessed from "blessed";
 
 var nextTick = global.setImmediate || process.nextTick.bind(process);
 

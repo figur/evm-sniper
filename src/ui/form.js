@@ -1,15 +1,16 @@
 import blessed from "blessed";
 
-function createForm(screen, config, { closable } = { closable: false }) {
+function createForm(screen, formConfig, { closable } = { closable: false }) {
 	const form = blessed.form({
 		name: 'form',
 		screen: screen,
 		keys: true,
 		clickable: true,
+		label: formConfig.label,
 		left: 'center',
 		top: 'center',
-		width: 53,
-		height: config.height,
+		width: '35%',
+		height: formConfig.height,
 		shrink: false,
 		border: 'line',
 	});
@@ -34,7 +35,7 @@ function createForm(screen, config, { closable } = { closable: false }) {
 		process.exit(0);
 	});
 
-	config.fields.forEach(field => {
+	formConfig.fields.forEach((field, index) => {
 		blessed.text({
 			parent: form,
 			left: field.label.left,
@@ -60,9 +61,15 @@ function createForm(screen, config, { closable } = { closable: false }) {
 		}
 
 		field.ref = textBox;
+
+		if (index === 0) {
+			process.nextTick(() => {
+				textBox.focus();
+			});
+		}
 	});
 
-	config.buttons.forEach(button => {
+	formConfig.buttons.forEach(button => {
 		const btn = blessed.button({
 			parent: form,
 			mouse: true,

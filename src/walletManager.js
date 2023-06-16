@@ -1,13 +1,14 @@
 import config from "./config.js";
 import blessed from "blessed";
-import prompt from './helpers/form.js'
+import prompt from './ui/form.js'
+
 class WalletManager {
     constructor(uiManager, web3) {
         this.uiManager = uiManager;
         this.config = config;
         //this.chains = this.uiManager.config.get("chains");
         this.wallets = config.get("wallets");
-        this.walletTokens = config.get("walletTokens");
+        this.walletTokens = config.get("tokens");
         this.web3 = web3
 
         config.onDidChange('wallets', (newValue, oldValue) => {
@@ -15,8 +16,6 @@ class WalletManager {
             // this.updateWalletsUI();
         });
     }
-
-
 
     showWalletListMenu() {
         this.walletListMenu = blessed.list({
@@ -114,12 +113,12 @@ class WalletManager {
         const config = {
             height: 9,
             fields: [
-                { name: 'walletName', label: { content: 'Name (opt)  :', left: 2, bottom: 7 }, left: 16, bottom: 7, width: 35 },
-                { name: 'walletPrivateKey', label: { content: 'Private Key :', left: 2, bottom: 5 }, left: 16, bottom: 5, width: 30, censor: true },
+                { name: 'walletName', label: { content: 'Name (opt)  :', left: 2, bottom: 4 }, left: 16, bottom: 4, width: 35 },
+                { name: 'walletPrivateKey', label: { content: 'Private Key :', left: 2, bottom: 3 }, left: 16, bottom: 3, width: 30, censor: true },
             ],
             buttons: [
-                { content: 'Cancel', right: 11, bottom: 1, action: () => form.cancel() },
-                { content: 'Add', right: 2, bottom: 1, action: () => form.submit() }
+                { content: 'Add', left: 2, bottom: 1 },
+                { content: 'Cancel', left: 7, bottom: 1 },
             ]
         };
         await prompt(this.uiManager.screen, config, { closable: true }).promise

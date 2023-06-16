@@ -7,14 +7,14 @@
     "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
   "type": "module",
-  "author": "figur",
-  "license": "MIT",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "blessed": "^0.1.81",
     "conf": "^11.0.1",
     "js-yaml": "^4.1.0",
-    "web3": "^1.9.0"
+    "web3": "^1.10.0"
   }
 }

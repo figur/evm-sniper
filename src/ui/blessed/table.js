@@ -1,4 +1,4 @@
-import blessed from 'blessed';
+import blessed from "blessed";
 
 // See https://github.com/chjj/blessed/pull/292
 blessed.Table.prototype._calculateMaxes =

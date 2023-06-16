@@ -23,5 +23,3 @@ blessed.with = function (...fns) {
 blessed.element.prototype.with = function (...fns) {
   return fns.reduce((e, fn) => fn.call(null, e) || e, this);
 };
-
-blessed.element
